@@ -6,67 +6,99 @@ Description: Hypercore/Autobase を利用したメッセージの送受信と履
 */
 
 import Autobase from 'autobase'
+import crypto from 'hypercore-crypto'
+
+/**
+ * 参加者公開鍵から一意のルームIDを生成します。
+ * @param {string[]} participantKeys
+ * @returns {string}
+ */
+export function createRoomId(participantKeys) {
+  const normalized = [...participantKeys].map((key) => key.toLowerCase()).sort()
+  const seed = Buffer.from(normalized.join(':'))
+  return crypto.discoveryKey(seed).toString('hex')
+}
 
 /**
  * チャットセッション（Autobase）を構成します。
  * @param {Corestore} store - Corestoreインスタンス
  * @param {Buffer} localKey - 自分の公開鍵
  * @param {Array<Buffer>} participants - 参加者の公開鍵リスト
- * @returns {Autobase}
+ * @returns {Promise<{ base: Autobase, view: any, roomId: string }>}
  */
 export async function createChatSession(store, localKey, participants) {
-  const localCore = store.get({ name: 'my-chat-log' })
+  const localKeyHex = localKey.toString('hex')
+  const participantHex = participants.map((pubKey) => pubKey.toString('hex'))
+  const roomId = createRoomId([localKeyHex, ...participantHex])
+
+  const localCore = store.get({ name: `chat-room-${roomId}` })
   await localCore.ready()
 
-  // 自分自身と参加者の全ての入力を管理
   const base = new Autobase(localCore)
-  
-  // 参加者の入力を追加
+
+  // NOTE:
+  // 本来は各参加者の writer key を共有して addInput する必要があるが、
+  // 現段階では participant 公開鍵をもとに入力コアを解決する簡易実装とする。
   for (const pubKey of participants) {
     if (pubKey.equals(localKey)) continue
     const remoteCore = store.get({ key: pubKey })
+    await remoteCore.ready()
     await base.addInput(remoteCore)
   }
 
-  // インデックス（ビュー）の定義
-  // Autobase 6.x 系では簡約化されたビューモデルを使用可能
   const view = base.view({
-    apply (batch, view, base) {
+    apply (batch, view) {
       for (const node of batch) {
-        if (node.value) {
-          view.append(node.value)
-        }
+        if (node.value) view.append(node.value)
       }
     }
   })
 
   await view.ready()
-  return { base, view }
+  return { base, view, roomId }
+}
+
+function createMessageId(roomId) {
+  return `${roomId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 /**
  * メッセージを送信します。
- * @param {Autobase} base 
+ * @param {Autobase} base
  * @param {object} message { type, text, fileHash, ... }
+ * @param {string} senderPublicKey
+ * @param {string} roomId
  */
-export async function sendMessage(base, message) {
+export async function sendMessage(base, message, senderPublicKey, roomId) {
   await base.append({
-    ...message,
-    timestamp: Date.now()
+    type: message.type || 'text',
+    text: message.text || '',
+    fileHash: message.fileHash || null,
+    messageId: message.messageId || createMessageId(roomId),
+    senderPublicKey,
+    timestamp: message.timestamp || Date.now()
   })
 }
 
 /**
  * メッセージ履歴を取得します。
- * @param {AutobaseView} view 
+ * @param {any} view
+ * @param {string} localPublicKey
  * @returns {Promise<Array>}
  */
-export async function getMessages(view) {
+export async function getMessages(view, localPublicKey) {
   const messages = []
   const len = view.length
+
   for (let i = 0; i < len; i++) {
     const msg = await view.get(i)
-    messages.push(msg)
+    if (!msg) continue
+
+    messages.push({
+      ...msg,
+      self: msg.senderPublicKey === localPublicKey
+    })
   }
+
   return messages
 }
