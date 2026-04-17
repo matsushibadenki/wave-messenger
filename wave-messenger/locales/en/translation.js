@@ -9,8 +9,20 @@ export default {
     "start": "Get Started"
   },
   "tabs": {
+    "home": "Home",
     "contacts": "Contacts",
     "chats": "Chats",
     "settings": "Settings"
+  },
+  "media": {
+    "uploading": "Uploading...",
+    "downloading": "Downloading...",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "qr": {
+    "my_id": "My ID",
+    "scan": "Scan",
+    "copy": "Copy ID"
   }
 }

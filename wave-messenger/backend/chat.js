@@ -10,44 +10,63 @@ import Autobase from 'autobase'
 /**
  * チャットセッション（Autobase）を構成します。
  * @param {Corestore} store - Corestoreインスタンス
- * @param {Buffer} localSecret - 自分の秘密鍵（署名用）
+ * @param {Buffer} localKey - 自分の公開鍵
  * @param {Array<Buffer>} participants - 参加者の公開鍵リスト
  * @returns {Autobase}
  */
-export async function createChatSession(store, localSecret, participants) {
+export async function createChatSession(store, localKey, participants) {
   const localCore = store.get({ name: 'my-chat-log' })
   await localCore.ready()
 
-  const base = new Autobase(localCore, {
-    /* Autobaseの構成: 参加者のコアを追加 */
-  })
-
+  // 自分自身と参加者の全ての入力を管理
+  const base = new Autobase(localCore)
+  
+  // 参加者の入力を追加
   for (const pubKey of participants) {
+    if (pubKey.equals(localKey)) continue
     const remoteCore = store.get({ key: pubKey })
     await base.addInput(remoteCore)
   }
 
-  return base
+  // インデックス（ビュー）の定義
+  // Autobase 6.x 系では簡約化されたビューモデルを使用可能
+  const view = base.view({
+    apply (batch, view, base) {
+      for (const node of batch) {
+        if (node.value) {
+          view.append(node.value)
+        }
+      }
+    }
+  })
+
+  await view.ready()
+  return { base, view }
 }
 
 /**
  * メッセージを送信します。
  * @param {Autobase} base 
- * @param {string} text 
+ * @param {object} message { type, text, fileHash, ... }
  */
-export async function sendMessage(base, text) {
+export async function sendMessage(base, message) {
   await base.append({
-    type: 'text',
-    text,
+    ...message,
     timestamp: Date.now()
   })
 }
 
 /**
- * メッセージ履歴を時系列順に取得します。
- * @param {Autobase} base 
- * @returns {AsyncIterable}
+ * メッセージ履歴を取得します。
+ * @param {AutobaseView} view 
+ * @returns {Promise<Array>}
  */
-export async function createMessageStream(base) {
-  return base.createCausalStream()
+export async function getMessages(view) {
+  const messages = []
+  const len = view.length
+  for (let i = 0; i < len; i++) {
+    const msg = await view.get(i)
+    messages.push(msg)
+  }
+  return messages
 }

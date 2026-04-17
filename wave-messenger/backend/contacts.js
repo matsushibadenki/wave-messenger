@@ -8,14 +8,19 @@ import Hyperbee from 'hyperbee'
 
 /**
  * 連絡先DBを初期化します。
- * @param {Hypercore} core - 連絡先を保存するためのHypercore
+ * @param {Corestore} store 
  * @returns {Hyperbee}
  */
-export function initContactDB(core) {
+export async function initContactDB(store) {
+  const core = store.get({ name: 'contacts-db' })
+  await core.ready()
+
   const db = new Hyperbee(core, {
     keyEncoding: 'utf-8',
     valueEncoding: 'json'
   })
+  
+  await db.ready()
   return db
 }
 
@@ -23,12 +28,14 @@ export function initContactDB(core) {
  * 連絡先を追加または更新します。
  * @param {Hyperbee} db 
  * @param {string} publicKey - ピアの公開鍵(hex)
- * @param {object} profile - プロフィール情報 { name, avatarUrl, addedAt }
+ * @param {object} profile - プロフィール情報 { name, avatarUrl }
  */
 export async function upsertContact(db, publicKey, profile) {
   const key = `contact:${publicKey}`
   await db.put(key, {
     ...profile,
+    publicKey, // 検索時に便利なように公開鍵も含める
+    addedAt: Date.now(),
     updatedAt: Date.now()
   })
 }
@@ -40,8 +47,9 @@ export async function upsertContact(db, publicKey, profile) {
  */
 export async function getAllContacts(db) {
   const contacts = []
-  for await (const { key, value } of db.createReadStream({ gt: 'contact:', lt: 'contact:\uffff' })) {
-    contacts.push({ publicKey: key.split(':')[1], ...value })
+  const stream = db.createReadStream({ gt: 'contact:', lt: 'contact:\uffff' })
+  for await (const { value } of stream) {
+    contacts.push(value)
   }
   return contacts
 }
