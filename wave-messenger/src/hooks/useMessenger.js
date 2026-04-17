@@ -10,13 +10,17 @@ import { useState, useEffect, useCallback } from '../../vendor/react-shim.js'
 if (typeof window !== 'undefined' && !window.bridge) {
   const pending = new Map()
   
-  // Pear v2 のメッセージ受信 (Pear.on を使用)
+  // Pear v2 のメッセージ受信 (Pear.on('data', ...) を使用)
   if (typeof Pear !== 'undefined' && Pear.on) {
-    Pear.on('message', (data) => {
+    Pear.on('data', (data) => {
       try {
-        const msg = typeof data === 'string' || Buffer.isBuffer(data) 
-          ? JSON.parse(data.toString()) 
-          : data
+        const str = (typeof data === 'string') 
+          ? data 
+          : (data instanceof Uint8Array || (typeof Buffer !== 'undefined' && Buffer.isBuffer(data)))
+            ? new TextDecoder().decode(data)
+            : JSON.stringify(data)
+            
+        const msg = JSON.parse(str)
         const { id, result, error } = msg
         if (pending.has(id)) {
           const { resolve, reject } = pending.get(id)
@@ -25,7 +29,7 @@ if (typeof window !== 'undefined' && !window.bridge) {
           else resolve(result)
         }
       } catch (e) {
-        // RPC以外のメッセージは無視
+        // RPC以外のメッセージ、またはパースエラーは無視
       }
     })
   }
@@ -36,10 +40,17 @@ if (typeof window !== 'undefined' && !window.bridge) {
         const id = Math.random().toString(36).slice(2)
         pending.set(id, { resolve, reject })
         const msg = JSON.stringify({ id, method, params })
-        if (typeof Pear !== 'undefined' && Pear.send) {
-          Pear.send(msg)
+        
+        if (typeof Pear !== 'undefined') {
+          if (Pear.write) {
+            Pear.write(msg)
+          } else if (Pear.send) {
+            Pear.send(msg)
+          } else {
+            reject(new Error("Pear IPC (write/send) available but no method found"))
+          }
         } else {
-          reject(new Error("Pear IPC (send/on) not available"))
+          reject(new Error("Pear IPC not available"))
         }
       })
     }

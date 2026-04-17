@@ -34,6 +34,17 @@
   <!-- Module resolution via explicit relative paths -->
 
   <script>
+    // Suppress specific warnings from standalone libraries in "production-like" environments
+    const originalWarn = console.warn;
+    console.warn = function(...args) {
+      if (args[0] && typeof args[0] === 'string') {
+        if (args[0].includes('cdn.tailwindcss.com') || args[0].includes('in-browser Babel transformer')) {
+          return;
+        }
+      }
+      originalWarn.apply(console, args);
+    };
+
     window.onerror = function(msg, url, line, col, error) {
       document.body.insertAdjacentHTML('afterbegin', '<div style="position:fixed;top:0;left:0;right:0;background:red;color:white;padding:10px;z-index:9999;font-size:12px;">RENDERER ERROR: ' + msg + '</div>');
       console.error("RENDERER ERROR:", msg, "at", url, ":", line);
