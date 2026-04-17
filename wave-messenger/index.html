@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wave Messenger</title>
+  <link rel="icon" href="data:,"> <!-- Prevent favicon.ico request -->
+  <!-- UI Libraries -->
+  <!-- Pure Local UI (No External Fonts to avoids ERR_BLOCKED_BY_CLIENT) -->
+  <script src="./vendor/tailwind.min.js"></script>
+  
+  <!-- Babel for Runtime JSX Transformation -->
+  <script src="./vendor/babel.min.js"></script>
+
+  <!-- UMD Libraries -->
+  <script src="./vendor/react.min.js"></script>
+  <script src="./vendor/react-dom.min.js"></script>
+  <script src="./vendor/i18next.min.js"></script>
+  <script src="./vendor/react-i18next.min.js"></script>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Hiragino Sans", "Noto Sans JP", sans-serif;
+      background: #f0f2f5;
+      letter-spacing: -0.01em;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+  </style>
+
+  <!-- Module resolution via explicit relative paths -->
+
+  <script>
+    window.onerror = function(msg, url, line, col, error) {
+      document.body.insertAdjacentHTML('afterbegin', '<div style="position:fixed;top:0;left:0;right:0;background:red;color:white;padding:10px;z-index:9999;font-size:12px;">RENDERER ERROR: ' + msg + '</div>');
+      console.error("RENDERER ERROR:", msg, "at", url, ":", line);
+      return false;
+    };
+    window.onunhandledrejection = function(event) {
+      console.error("UNHANDLED REJECTION:", event.reason);
+    };
+    console.log("Wave Messenger: Renderer debug hooks installed.");
+  </script>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen overflow-hidden">
+  <div id="root" class="w-full h-screen max-w-md bg-white shadow-2xl overflow-hidden flex flex-col relative">
+    <!-- Splash Screen Overlay -->
+    <div id="splash" class="absolute inset-0 z-50 bg-gradient-to-br from-green-400 via-blue-500 to-blue-700 flex flex-col items-center justify-center transition-opacity duration-1000 ease-in-out">
+      <img src="./assets/icon.png" class="w-40 h-40 mb-8 transform hover:scale-105 transition-transform duration-500 drop-shadow-sm">
+      <div class="text-center">
+        <h1 class="text-white text-4xl font-black tracking-tighter mb-2">Wave Messenger</h1>
+        <p class="text-white text-opacity-80 text-sm tracking-[0.3em] uppercase">Decentralized & Secure</p>
+      </div>
+      <div class="absolute bottom-12 text-white text-opacity-40 text-[10px] font-mono animate-pulse">
+        CONNECTING TO PEERS...
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Main Script with Babel -->
+  <script type="text/babel" data-type="module" data-presets="react" src="./src/index.js"></script>
+</body>
+</html>

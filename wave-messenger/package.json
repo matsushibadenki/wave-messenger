@@ -1,0 +1,38 @@
+{
+  "name": "wave-messenger",
+  "version": "1.0.0",
+  "type": "module",
+  "pear": {
+    "name": "wave-messenger",
+    "pre": "pear-electron/pre",
+    "gui": {
+      "width": 400,
+      "height": 700,
+      "backgroundColor": "#f0f2f5"
+    }
+  },
+  "scripts": {
+    "test": "brittle test/**/*.test.js",
+    "dev": "pear run --dev ."
+  },
+  "dependencies": {
+    "autobase": "^6.3.0",
+    "compact-encoding": "^2.11.0",
+    "corestore": "^7.9.2",
+    "hyperbee": "^2.27.3",
+    "hypercore": "^11.28.1",
+    "hypercore-crypto": "^3.4.1",
+    "hyperdrive": "^11.0.0",
+    "hyperswarm": "^4.17.0",
+    "i18next": "^23.4.4",
+    "pear-bridge": "^1.0.1",
+    "pear-electron": "^1.0.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-i18next": "^13.0.3"
+  },
+  "devDependencies": {
+    "brittle": "^3.0.0",
+    "pear-interface": "^1.0.0"
+  }
+}
