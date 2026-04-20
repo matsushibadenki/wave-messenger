@@ -11,14 +11,16 @@ function buildSessionId(localPublicKey, targetPublicKey) {
   return `call-${sorted}`
 }
 
-export function startCallSession(localPublicKey, targetPublicKey, media = 'video') {
-  const sessionId = buildSessionId(localPublicKey, targetPublicKey)
+export function startCallSession(localPublicKey, targetPublicKeys, media = 'video') {
+  const participants = Array.isArray(targetPublicKeys) ? targetPublicKeys : [targetPublicKeys]
+  const sorted = [localPublicKey, ...participants].sort().join(':')
+  const sessionId = `call-${sorted}`
   const now = Date.now()
 
   const session = {
     sessionId,
     localPublicKey,
-    targetPublicKey,
+    participants,
     media,
     state: 'ringing',
     startedAt: now,

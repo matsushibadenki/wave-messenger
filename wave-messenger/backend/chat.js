@@ -63,20 +63,51 @@ function createMessageId(roomId) {
 }
 
 /**
+ * メッセージレコードのハッシュを計算します。
+ * @param {object} record 
+ * @returns {string}
+ */
+export function calculateMessageHash(record) {
+  const { senderPublicKey, timestamp, text, fileHash, prevHash, type } = record
+  // 決定論的なJSON文字列化（簡易版）
+  const payload = JSON.stringify({ senderPublicKey, timestamp, text, fileHash, prevHash, type })
+  return crypto.data(Buffer.from(payload)).toString('hex')
+}
+
+
+/**
  * メッセージを送信します。
  * @param {Autobase} base
+ * @param {any} view - メッセージ確認用のビュー
  * @param {object} message { type, text, fileHash, ... }
  * @param {string} senderPublicKey
  * @param {string} roomId
  */
-export async function sendMessage(base, message, senderPublicKey, roomId) {
-  await base.append({
+export async function sendMessage(base, view, message, senderPublicKey, roomId) {
+  // 直前のメッセージのハッシュを取得してチェーンを形成
+  let prevHash = null
+  const len = view.length
+  if (len > 0) {
+    const lastMsg = await view.get(len - 1)
+    if (lastMsg) prevHash = lastMsg.hash
+  }
+
+  const record = {
     type: message.type || 'text',
     text: message.text || '',
     fileHash: message.fileHash || null,
     messageId: message.messageId || createMessageId(roomId),
     senderPublicKey,
-    timestamp: message.timestamp || Date.now()
+    timestamp: message.timestamp || Date.now(),
+    prevHash
+  }
+
+  // 自身のハッシュを計算
+  const hash = calculateMessageHash(record)
+  
+  await base.append({
+    ...record,
+    hash
   })
 }
 

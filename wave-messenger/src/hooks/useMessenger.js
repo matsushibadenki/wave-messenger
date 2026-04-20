@@ -4,22 +4,38 @@ File Name: useMessenger.js
 Description: Pear.messages を介してメインプロセスのP2Pバックエンドと通信するフックです。
 */
 
-import { useState, useEffect, useCallback } from '../../vendor/react-shim.js'
+import { useState, useEffect, useCallback } from '/vendor/react-shim.js'
 
 if (typeof window !== 'undefined' && !window.bridge) {
   const pending = new Map()
 
-  if (typeof Pear !== 'undefined' && Pear.on) {
-    Pear.on('data', (data) => {
+  if (typeof Pear !== 'undefined' && typeof Pear.messages === 'function') {
+    console.log('Pear.messages listener initialized');
+    // Pear.messages(callback) を使用してメインプロセスからのメッセージを購読
+    Pear.messages((data) => {
       try {
-        const str = (typeof data === 'string')
-          ? data
-          : (data instanceof Uint8Array || (typeof Buffer !== 'undefined' && Buffer.isBuffer(data)))
-            ? new TextDecoder().decode(data)
-            : JSON.stringify(data)
+        console.log('IPC Response received (raw):', data);
+        let msg;
+        if (typeof data === 'object' && data !== null && !Buffer.isBuffer(data) && !(data instanceof Uint8Array)) {
+          msg = data; // Already an object
+        } else {
+          const str = (typeof data === 'string')
+            ? data
+            : (data instanceof Uint8Array || (typeof Buffer !== 'undefined' && Buffer.isBuffer(data)))
+              ? new TextDecoder().decode(data)
+              : String(data)
+          msg = JSON.parse(str)
+        }
 
-        const msg = JSON.parse(str)
-        const { id, result, error } = msg
+        const { id, result, error, method: msgMethod } = msg
+
+        // 重要: 自分が送信したリクエスト（methodプロパティを持つ）のエコーを無視する
+        if (msgMethod && !result && !error) {
+          console.log('IPC Ignore self-echoed request:', msgMethod);
+          return;
+        }
+
+        console.log('IPC Response processed:', { id, hasResult: typeof result !== 'undefined', error });
 
         if (pending.has(id)) {
           const { resolve, reject } = pending.get(id)
@@ -27,10 +43,12 @@ if (typeof window !== 'undefined' && !window.bridge) {
           if (error) reject(new Error(error))
           else resolve(result)
         }
-      } catch {
-        // RPC以外のメッセージ、またはパースエラーは無視
+      } catch (err) {
+        console.warn('IPC Response parse error or unexpected format:', err, data);
       }
     })
+  } else {
+    console.warn('Pear.messages is NOT available in this environment');
   }
 
   window.bridge = {
@@ -38,18 +56,15 @@ if (typeof window !== 'undefined' && !window.bridge) {
       return new Promise((resolve, reject) => {
         const id = Math.random().toString(36).slice(2)
         pending.set(id, { resolve, reject })
-        const msg = JSON.stringify({ id, method, params })
+        // オブジェクトとして送信（Pear.message は自動的にシリアライズする場合がある）
+        const payload = { id, method, params }
 
-        if (typeof Pear !== 'undefined') {
-          if (Pear.write) {
-            Pear.write(msg)
-          } else if (Pear.send) {
-            Pear.send(msg)
-          } else {
-            reject(new Error('Pear IPC (write/send) available but no method found'))
-          }
+        if (typeof Pear !== 'undefined' && typeof Pear.message === 'function') {
+          console.log(`IPC Request sent: ${method} (ID: ${id})`, payload);
+          Pear.message(payload)
         } else {
-          reject(new Error('Pear IPC not available'))
+          console.error('Pear message method not found. Available keys:', typeof Pear !== 'undefined' ? Object.keys(Pear) : 'undefined')
+          reject(new Error('Pear IPC (message) not available'))
         }
       })
     }
@@ -132,6 +147,7 @@ export function useMessenger() {
 
   const callAction = useCallback((params) => bridge.invoke('call-action', params), [bridge])
   const pushAction = useCallback((params) => bridge.invoke('push-action', params), [bridge])
+  const mediaAction = useCallback((params) => bridge.invoke('media-action', params), [bridge])
 
   return {
     profile,
@@ -146,6 +162,7 @@ export function useMessenger() {
     sendChatMessage,
     markChatRead,
     callAction,
-    pushAction
+    pushAction,
+    mediaAction
   }
 }
